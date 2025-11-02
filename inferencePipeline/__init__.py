@@ -25,7 +25,7 @@ class OptimizedInferencePipeline:
         self.model = None
         self.tokenizer = None
         self.device = "cpu"
-        self.batch_size = 24  # Can go higher with quantization
+        self.batch_size = 24
         self.max_length = 200
         print(f"[INIT] Device: {self.device}, Batch: {self.batch_size}")
         
