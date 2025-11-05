@@ -1,7 +1,6 @@
 """
-Ultra-Optimized Llama.cpp Inference Pipeline for Tech Arena 2025
-Uses GGUF Q4_K_M quantization for maximum CPU performance
-Caches converted model for reuse
+Production-Ready Optimized Llama 3.2 3B Inference Pipeline
+Tech Arena 2025 - Maximum Performance on CPU
 """
 
 import torch
@@ -9,17 +8,8 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import List, Dict
 import os
 import gc
-from pathlib import Path
 
-# Try to import llama-cpp-python, fallback to transformers
-try:
-    from llama_cpp import Llama
-    LLAMA_CPP_AVAILABLE = True
-except ImportError:
-    LLAMA_CPP_AVAILABLE = False
-    from transformers import AutoModelForCausalLM
-
-# Disable warnings
+# Disable unnecessary features
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ['HF_HUB_OFFLINE'] = '1'
 os.environ['TRANSFORMERS_OFFLINE'] = '1'
@@ -30,171 +20,123 @@ class OptimizedInferencePipeline:
         self.model = None
         self.tokenizer = None
         self.device = "cpu"
-        self.batch_size = 64  # Larger batches with quantization
-        self.use_llamacpp = LLAMA_CPP_AVAILABLE
+        self.batch_size = 48
         
-        # Subject-specific token limits
+        # Subject-specific token limits (critical for accuracy)
         self.token_limits = {
-            'algebra': 180,
-            'history': 150,
-            'geography': 100,
+            'algebra': 180,      # Math needs detailed steps
+            'history': 150,      # History needs context
+            'geography': 100,    # Geography is concise
             'general': 120
         }
         
-    def convert_to_gguf(self, hf_model_path: str, output_path: str):
-        """Convert HF model to GGUF format using llama.cpp converter"""
-        import subprocess
-        
-        print(f"[CONVERT] Converting model to GGUF Q4_K_M format...")
-        print(f"[CONVERT] This is a one-time operation, subsequent runs will be fast!")
-        
-        try:
-            # Use llama.cpp's convert script
-            cmd = [
-                "python", "-m", "llama_cpp.convert",
-                hf_model_path,
-                "--outfile", output_path,
-                "--outtype", "q4_k_m"
-            ]
-            
-            subprocess.run(cmd, check=True, capture_output=True)
-            print(f"[CONVERT] Conversion complete! GGUF saved to {output_path}")
-            return True
-            
-        except Exception as e:
-            print(f"[CONVERT] Conversion failed: {e}")
-            print(f"[CONVERT] Falling back to transformers...")
-            return False
-    
     def load_model(self):
-        """Load model - use llama.cpp if available, else transformers"""
+        """Load Llama 3.2 3B with maximum CPU optimizations"""
         model_name = "meta-llama/Llama-3.2-3B-Instruct"
         cache_dir = '/app/models'
         
-        # Always need tokenizer
+        # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_name,
             cache_dir=cache_dir,
             local_files_only=True,
             trust_remote_code=True,
         )
+        
+        # CRITICAL: Left padding for proper batch inference
         self.tokenizer.padding_side = 'left'
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
         
-        if self.use_llamacpp:
-            # Try to use llama.cpp for 2-3x speedup
-            gguf_path = Path("./gguf_cache/llama-3.2-3b-instruct-q4_k_m.gguf")
-            gguf_path.parent.mkdir(exist_ok=True)
-            
-            # Check if GGUF already exists (cached from previous run)
-            if not gguf_path.exists():
-                print(f"[LOAD] GGUF not found, converting model...")
-                print(f"[LOAD] This will take 3-5 minutes but dramatically speeds up inference!")
-                
-                #hf_path = Path(cache_dir) / model_name.split('/')[-1]
-                hf_path = Path(cache_dir) / "models--meta-llama--Llama-3.2-3B-Instruct"
-                if not hf_path.exists():
-                    hf_path = cache_dir
-                
-                success = self.convert_to_gguf(str(hf_path), str(gguf_path))
-                
-                if not success:
-                    print(f"[LOAD] Conversion failed, using transformers instead")
-                    self.use_llamacpp = False
-            else:
-                print(f"[LOAD] Found cached GGUF model, loading...")
-            
-            if self.use_llamacpp and gguf_path.exists():
-                # Load GGUF with llama.cpp - blazing fast!
-                self.model = Llama(
-                    model_path=str(gguf_path),
-                    n_ctx=2048,
-                    n_threads=16,  # Use all 16 AMD cores
-                    n_batch=512,
-                    verbose=False,
-                )
-                print(f"[LOAD] llama.cpp model loaded successfully!")
-                return
-        
-        # Fallback to transformers (original method)
-        print(f"[LOAD] Using transformers (consider installing llama-cpp-python for 2-3x speedup)")
-        self.use_llamacpp = False
-        
+        # Load model with CPU optimizations
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
             cache_dir=cache_dir,
             local_files_only=True,
-            torch_dtype=torch.bfloat16,
+            torch_dtype=torch.bfloat16,  # Better than float32 on modern CPUs
             trust_remote_code=True,
             low_cpu_mem_usage=True,
         )
+        
         self.model.eval()
         
+        # Torch compile for significant speedup
         try:
-            self.model = torch.compile(self.model, mode="reduce-overhead")
+            self.model = torch.compile(self.model, mode="reduce-overhead", fullgraph=True)
         except:
-            pass
+            try:
+                self.model = torch.compile(self.model, mode="reduce-overhead")
+            except:
+                pass  # Fallback if compile not available
     
     def create_expert_prompt(self, question: str, subject: str) -> str:
-        """Enhanced prompts with few-shot examples"""
+        """
+        Expert prompts with few-shot examples for maximum accuracy.
+        Few-shot learning is proven to dramatically improve LLM performance.
+        """
         
         if subject == "algebra":
-            few_shot = """Examples:
+            few_shot = """Examples of excellent algebra answers:
 
 Q: What kind of function has a graph that is a straight line?
-A: A linear function: y = mx + b.
+A: A linear function has the form y = mx + b, where m is the slope and b is the y-intercept.
 
 Q: Could you explain why matrices help solve { x + y = 5 ; x - y = 1 }?
-A: Matrices organize this as A·v = b where A = [[1,1], [1,-1]], v = [x,y]ᵀ, b = [5,1]ᵀ. Solve via A⁻¹b: x = 3, y = 2.
+A: Matrices organize the system as A·v = b where A = [[1,1], [1,-1]], v = [x, y]ᵀ, and b = [5, 1]ᵀ. Using inverse matrices or row reduction: multiply by A⁻¹ to get v = A⁻¹b, yielding x = 3, y = 2.
 
 Q: Factor x² + 7x + 12
-A: Two numbers that multiply to 12 and add to 7 are 3 and 4. So x² + 7x + 12 = (x + 3)(x + 4).
+A: Find two numbers that multiply to 12 and add to 7: those are 3 and 4. Therefore: x² + 7x + 12 = (x + 3)(x + 4).
 
-Now answer:"""
-            system = "You are an expert algebra tutor. Show clear mathematical reasoning."
+Now answer this question with clear mathematical reasoning:"""
+            
+            system = "You are an expert algebra tutor. Provide precise mathematical answers with clear steps."
             
         elif subject == "geography":
-            few_shot = """Examples:
+            few_shot = """Examples of excellent geography answers:
 
 Q: What's the highest point in South America?
-A: Aconcagua (6,961 m) in Argentina.
+A: Aconcagua (6,961 m or 22,837 ft) in Argentina, located in the Andes mountain range.
 
 Q: Which country is known as the 'Land of the Thunder Dragon'?
-A: Bhutan.
+A: Bhutan, a landlocked country in the Eastern Himalayas of South Asia.
 
 Q: What are the Llanos?
-A: Vast tropical grasslands in Venezuela and eastern Colombia.
+A: The Llanos are vast tropical grasslands and savannas primarily in Venezuela and eastern Colombia, covering the Orinoco River basin.
 
-Q: What is the largest hot desert?
-A: The Sahara in North Africa, approximately 9 million km².
+Q: What is the largest desert in the world?
+A: Antarctica is the world's largest desert (cold desert) at ~14 million km². The largest hot desert is the Sahara in North Africa at ~9 million km².
 
-Now answer:"""
-            system = "You are an expert geographer. Provide precise facts and locations."
+Now answer this question with specific facts and details:"""
+            
+            system = "You are an expert geographer. Provide accurate facts with specific locations and numbers."
             
         elif subject == "history":
-            few_shot = """Examples:
+            few_shot = """Examples of excellent history answers:
 
 Q: When did World War II end?
-A: 1945. Germany surrendered May 7-8 (V-E Day), Japan August 15 (V-J Day).
+A: World War II ended in 1945. Nazi Germany surrendered on May 7-8, 1945 (V-E Day), and Imperial Japan surrendered on August 15, 1945 (V-J Day), with the formal surrender ceremony on September 2, 1945.
 
-Q: In what ways did the Industrial Revolution influence political ideologies?
-A: It fueled classical liberalism (free markets, rights), sparked socialism and Marxism (worker response to inequality), and provoked conservative reactions. Led to labor movements and social democracy.
+Q: In what ways did the Industrial Revolution influence political ideologies in Europe?
+A: The Industrial Revolution (1760-1840) profoundly shaped European political thought. It fueled classical liberalism advocating free markets and individual rights. It also sparked socialism and Marxism as workers faced exploitation and inequality, leading to labor movements. Conservatives resisted rapid social change, while social democracy emerged seeking reform within capitalism. The revolution fundamentally reshaped class structures and political discourse.
 
-Q: Who was the first US President?
-A: George Washington (1789-1797).
+Q: Who was the first President of the United States?
+A: George Washington served as the first President of the United States from 1789 to 1797, establishing many key presidential precedents.
 
-Now answer:"""
-            system = "You are an expert historian. Provide dates, causes, effects, and context."
+Now answer this question with historical context and key details:"""
+            
+            system = "You are an expert historian. Provide accurate dates, causes, effects, and proper context."
             
         else:
-            few_shot = """Example:
-Q: What is photosynthesis?
-A: Process where plants use sunlight, water, and CO₂ to produce glucose and oxygen.
+            few_shot = """Example of excellent answer:
 
-Now answer:"""
-            system = "You are a knowledgeable educational assistant."
+Q: What is photosynthesis?
+A: Photosynthesis is the process by which plants, algae, and some bacteria convert light energy (usually from the sun) into chemical energy stored in glucose. Using chlorophyll, they combine carbon dioxide (CO₂) and water (H₂O) to produce glucose (C₆H₁₂O₆) and release oxygen (O₂).
+
+Now answer this question clearly and accurately:"""
+            
+            system = "You are a knowledgeable educational assistant. Provide clear, accurate answers."
         
+        # Llama 3.2 Instruct chat format
         prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
 {system}<|eot_id|><|start_header_id|>user<|end_header_id|>
@@ -207,60 +149,50 @@ Now answer:"""
         return prompt
     
     def detect_subject(self, question: str) -> str:
-        """Fast subject detection"""
+        """Optimized subject detection with fast keyword matching"""
         q = question.lower()
         
-        if any(kw in q for kw in ['solve', 'equation', 'factor', 'matrix', 'simplify']):
+        # Fast first-pass checks for obvious keywords
+        if any(kw in q for kw in ['solve', 'equation', 'factor', 'matrix', 'matrices', 'simplify', 'calculate']):
             return 'algebra'
-        if any(kw in q for kw in ['country', 'capital', 'mountain', 'river', 'ocean']):
+        
+        if any(kw in q for kw in ['country', 'capital', 'mountain', 'river', 'ocean', 'continent', 'highest', 'largest']):
             return 'geography'
-        if any(kw in q for kw in ['war', 'revolution', 'when did', 'who was', 'industrial']):
+        
+        if any(kw in q for kw in ['war', 'revolution', 'century', 'when did', 'who was', 'industrial revolution', 'influence']):
             return 'history'
         
+        # Detailed scoring for ambiguous cases
+        algebra_score = sum(1 for kw in ['function', 'graph', 'linear', 'quadratic', 
+                                         'x=', 'y=', 'polynomial', 'coefficient',
+                                         'variable', 'algebra', 'derivative', 'formula'] if kw in q)
+        
+        geography_score = sum(1 for kw in ['located', 'region', 'land', 'world',
+                                           'territory', 'geography', 'climate', 'area',
+                                           'island', 'desert', 'known as', 'called'] if kw in q)
+        
+        history_score = sum(1 for kw in ['historical', 'ancient', 'empire', 'period',
+                                         'founded', 'established', 'era', 'age',
+                                         'dynasty', 'civilization', 'treaty'] if kw in q)
+        
         scores = {
-            'algebra': sum(1 for kw in ['function', 'graph', 'calculate', 'variable'] if kw in q),
-            'geography': sum(1 for kw in ['located', 'land', 'region', 'world'] if kw in q),
-            'history': sum(1 for kw in ['century', 'ancient', 'influence', 'period'] if kw in q)
+            'algebra': algebra_score,
+            'geography': geography_score,
+            'history': history_score
         }
+        
         return max(scores, key=scores.get) if max(scores.values()) > 0 else 'general'
     
-    def process_batch_llamacpp(self, questions: List[str], subject: str) -> List[str]:
-        """Process batch using llama.cpp (much faster)"""
-        max_tokens = self.token_limits[subject]
-        answers = []
+    def process_batch(self, questions: List[str], subject: str) -> List[str]:
+        """Process batch with subject-specific token limits"""
         
-        # llama.cpp doesn't support batching the same way, process individually
-        # But it's so fast that individual processing is still faster than batched transformers!
-        for question in questions:
-            prompt = self.create_expert_prompt(question, subject)
-            
-            try:
-                output = self.model(
-                    prompt,
-                    max_tokens=max_tokens,
-                    temperature=0.0,  # Greedy
-                    top_p=1.0,
-                    echo=False,
-                    stop=["<|eot_id|>", "<|end_of_text|>"],
-                )
-                
-                answer = output['choices'][0]['text'].strip()
-                
-                if len(answer) > 5000:
-                    answer = answer[:5000]
-                
-                answers.append(answer)
-                
-            except Exception as e:
-                answers.append("Error generating answer.")
-        
-        return answers
-    
-    def process_batch_transformers(self, questions: List[str], subject: str) -> List[str]:
-        """Process batch using transformers (fallback)"""
+        # Get subject-specific max tokens
         max_tokens = self.token_limits[subject]
+        
+        # Create optimized prompts
         prompts = [self.create_expert_prompt(q, subject) for q in questions]
         
+        # Tokenize efficiently
         inputs = self.tokenizer(
             prompts,
             return_tensors="pt",
@@ -269,35 +201,50 @@ Now answer:"""
             max_length=1024
         ).to(self.device)
         
+        # Generate with optimized settings
         with torch.no_grad():
             outputs = self.model.generate(
                 **inputs,
                 max_new_tokens=max_tokens,
-                do_sample=False,
-                num_beams=1,
+                do_sample=False,  # Greedy decoding = fastest + deterministic
+                num_beams=1,      # No beam search = much faster
                 pad_token_id=self.tokenizer.pad_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
-                use_cache=True,
+                use_cache=True,   # KV cache for speed
+                repetition_penalty=1.0,
             )
         
+        # Efficient decoding
         answers = []
         for i, output in enumerate(outputs):
+            # Only decode the new tokens (not the prompt)
             generated_tokens = output[inputs['input_ids'][i].shape[0]:]
             answer = self.tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
+            
+            # Enforce character limit
             if len(answer) > 5000:
                 answer = answer[:5000]
+            
             answers.append(answer)
         
         return answers
     
     def __call__(self, questions: List[Dict]) -> List[Dict]:
-        """Main inference function"""
+        """
+        Main inference function.
+        Uses sequential processing (faster than parallel on CPU with 3B model).
+        """
         
         if self.model is None:
             self.load_model()
         
-        # Group by subject
-        subject_groups = {'algebra': [], 'geography': [], 'history': [], 'general': []}
+        # Group questions by subject for optimized batching
+        subject_groups = {
+            'algebra': [],
+            'geography': [],
+            'history': [],
+            'general': []
+        }
         
         for q in questions:
             subject = self.detect_subject(q['question'])
@@ -305,51 +252,50 @@ Now answer:"""
         
         all_results = []
         
-        # Process each subject sequentially
+        # Process each subject sequentially (faster on CPU than parallel)
         for subject, subject_questions in subject_groups.items():
             if not subject_questions:
                 continue
             
+            # Extract questions and IDs
             questions_text = [q['question'] for q in subject_questions]
             question_ids = [q['questionID'] for q in subject_questions]
             
-            # Choose processing method
-            if self.use_llamacpp:
-                # llama.cpp - process in smaller chunks for memory efficiency
-                batch_size = 8  # Smaller batches for llamacpp individual processing
-                for i in range(0, len(questions_text), batch_size):
-                    batch_qs = questions_text[i:i+batch_size]
-                    batch_ids = question_ids[i:i+batch_size]
+            # Process in batches
+            for i in range(0, len(questions_text), self.batch_size):
+                batch_qs = questions_text[i:i+self.batch_size]
+                batch_ids = question_ids[i:i+self.batch_size]
+                
+                try:
+                    batch_answers = self.process_batch(batch_qs, subject)
                     
-                    try:
-                        batch_answers = self.process_batch_llamacpp(batch_qs, subject)
-                        for qid, answer in zip(batch_ids, batch_answers):
-                            all_results.append({"questionID": qid, "answer": answer})
-                    except Exception:
-                        for qid in batch_ids:
-                            all_results.append({"questionID": qid, "answer": "Error."})
-            else:
-                # Transformers - use larger batches
-                for i in range(0, len(questions_text), self.batch_size):
-                    batch_qs = questions_text[i:i+self.batch_size]
-                    batch_ids = question_ids[i:i+self.batch_size]
-                    
-                    try:
-                        batch_answers = self.process_batch_transformers(batch_qs, subject)
-                        for qid, answer in zip(batch_ids, batch_answers):
-                            all_results.append({"questionID": qid, "answer": answer})
-                    except Exception:
-                        for qid in batch_ids:
-                            all_results.append({"questionID": qid, "answer": "Error."})
-                    
-                    if i % 192 == 0 and i > 0:
-                        gc.collect()
+                    for qid, answer in zip(batch_ids, batch_answers):
+                        all_results.append({
+                            "questionID": qid,
+                            "answer": answer
+                        })
+                        
+                except Exception as e:
+                    # Fallback for failed batches
+                    for qid in batch_ids:
+                        all_results.append({
+                            "questionID": qid,
+                            "answer": "Unable to generate answer due to processing error."
+                        })
+                
+                # Periodic memory cleanup
+                if i % 144 == 0 and i > 0:  # Every 3 full batches
+                    gc.collect()
         
-        # Return in original order
+        # Return results in original order
         result_dict = {r['questionID']: r for r in all_results}
-        return [result_dict[q['questionID']] for q in questions]
+        ordered_results = [result_dict[q['questionID']] for q in questions]
+        
+        return ordered_results
 
 
 def loadPipeline():
-    """Factory function"""
+    """
+    Factory function for run.py
+    """
     return OptimizedInferencePipeline()
