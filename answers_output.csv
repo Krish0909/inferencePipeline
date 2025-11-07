@@ -1,28 +1,41 @@
 difficulty,question,answer,subject,questionID,answer_generated
-medium,Could you explain why matrices help solve { x + y = 5 ; x - y = 1 }?,"They package the system as A·v=b with A=[[1,1],[1,-1]], v=[x,y]^T, b=[5,1]^T. You can then use inverse matrices or row-reduction to solve systematically: A^{-1}b → x=3, y=2.",algebra,390aa1a849d4f3dba4437060fc9c20d6cb39f82357fd3d9b5d922e5965c14324,"Here's the explanation:
+medium,Could you explain why matrices help solve { x + y = 5 ; x - y = 1 }?,"They package the system as A·v=b with A=[[1,1],[1,-1]], v=[x,y]^T, b=[5,1]^T. You can then use inverse matrices or row-reduction to solve systematically: A^{-1}b → x=3, y=2.",algebra,390aa1a849d4f3dba4437060fc9c20d6cb39f82357fd3d9b5d922e5965c14324,"To solve the system of equations { x + y = 5 ; x - y = 1 }, we can use matrices. Here's how:
 
-The system of equations { x + y = 5 ; x - y = 1 } can be represented as a matrix equation A·v = b, where:
+**Step 1: Write the equations in matrix form**
 
-A = [[1, 1], [1, -1]] (the coefficient matrix)
-v = [x, y]ᵀ (the variable vector)
-b = [5, 1]ᵀ (the constant vector)
+We can represent the system of equations as a matrix equation:
 
-To solve for x and y, we need to find the inverse of matrix A, denoted as A⁻¹. The inverse of a 2x2 matrix A = [[a, b], [c, d]] is given by:
+[ x  y ] [ x + y = 5 ] [ x - y = 1 ]
 
-A⁻¹ = (1/(ad - bc)) \* [[d, -b], [-c, a]]
+**Step 2: Create the coefficient matrix**
 
-In this case, A = [[1, 1], [1, -"
-medium,What kind of function has a graph that is a straight line?,A linear function: y=mx+b.,algebra,a2bbafa96bfe1405f7cbc3abcc96bd25c755b78960eae8ecc488049cce6cd584,A: A linear function: y = mx + b.
-medium,What's the highest point in South America?,"Aconcagua (6,961 m) in Argentina.",geography,be4496d763d9881cef6dc62eef58147a0615aac4463320d8961a61365e7b4a8d,"A: Aconcagua, a mountain located in the Andes mountain range in Argentina, is the highest point in South America, with an elevation of 6,962 meters (22,841 feet) above sea level."
-medium,I read about the 'Llanos.' What are they and where are they found?,"Vast tropical grasslands/savannas mainly in Venezuela and eastern Colombia, along the Orinoco basin.",geography,834337a7ac764aa73b783002f52dbffe34f2c3c24d5334fdbd720d7087d2d524,"The Llanos are a vast grassland region in South America, covering parts of Venezuela, Colombia, and Brazil."
-medium,Which country is known as the 'Land of the Thunder Dragon'?,Bhutan.,geography,b32671441800d04e9f2eff87edf2008f9dc344c74c1b31b5e90ad0f2a7d9289d,Bhutan.
-medium,In what ways did the Industrial Revolution influence political ideologies in Europe?,"It fueled liberalism (free markets, rights), socialism/Marxism (worker response to inequality), and later social democracy and labor movements; it also provoked conservative reactions to rapid change.",history,154cf425add4efd8f0af44818e4db3d64084421d3be6bfb407a4decc92f6b00b,"The Industrial Revolution had a profound impact on the development of political ideologies in Europe, leading to significant changes in the way people thought about government, economy, and society. Here are some key ways in which the Industrial Revolution influenced European political ideologies:
+The coefficient matrix is a 2x2 matrix with the coefficients of x and y in the equations:
 
-1. **Emergence of Liberalism**: The Industrial Revolution created new social and economic problems, such as urban poverty, inequality, and worker exploitation. In response, liberal thinkers like Adam Smith, John Stuart Mill, and Jeremy Bentham argued for individual rights, free markets, and limited government intervention in economic affairs. This led to the development of classical liberalism, which emphasized the importance of individual freedom, property rights, and the protection of the market economy.
-2. **Rise of Socialism and Marxism**:"
-mediu m,What is gods own country,kerala,geography,4,"The country called the ""Pearl of Africa"" is Egypt."
-mediu m,What is gods own country,kerala,geography,4,"The country called the ""Pearl of Africa"" is Egypt."
-mediu m,What country is called peral of africa,uagnda,geography,4,"The country called the ""Pearl of Africa"" is Egypt."
-mediu m,What country is called peral of africa,uagnda,geography,4,"The country called the ""Pearl of Africa"" is Egypt."
-medium,Who won world war 2,Allies,History,7,"A: The Allies, consisting of the United States, the United Kingdom, France, and the Soviet Union, ultimately emerged victorious in World War II. The war in Europe ended with the formal surrender of Germany on May 8, 1945 (V-E Day), while the war in the Pacific ended with the formal surrender of Japan on September 2, 1945 (V-J Day). The Allies had defeated the Axis powers, which included Germany, Italy, and Japan, after a prolonged and devastating conflict that lasted from 1939 to 1945."
-medium,what is Profitability Index,Benefit to cost ratio including discount,Finance,8,"A: A measure of the return on investment (ROI) of a project or business, calculated by dividing the net present value (NPV) of the project by its initial investment, to determine the expected profitability of the project."
+[ 1  1 ] [ x  y ]
+
+**Step"
+medium,What kind of function has a graph that is a straight line?,A linear function: y=mx+b.,algebra,a2bbafa96bfe1405f7cbc3abcc96bd25c755b78960eae8ecc488049cce6cd584,A linear function.
+medium,What's the highest point in South America?,"Aconcagua (6,961 m) in Argentina.",geography,be4496d763d9881cef6dc62eef58147a0615aac4463320d8961a61365e7b4a8d,"Mount Aconcagua, located in Argentina, is the highest point in South America, with an elevation of 6,962 meters (22,841 feet) above sea level."
+medium,I read about the 'Llanos.' What are they and where are they found?,"Vast tropical grasslands/savannas mainly in Venezuela and eastern Colombia, along the Orinoco basin.",geography,834337a7ac764aa73b783002f52dbffe34f2c3c24d5334fdbd720d7087d2d524,"The Llanos are a vast grassland region in South America, stretching across present-day Colombia, Venezuela, and parts of Ecuador. They are a type of savanna ecosystem characterized by open grasslands, savannas, and scattered forests. The Llanos are also known as the ""Pantano"" in Spanish, which means ""grasslands"" or ""pantano"" in the"
+medium,Which country is known as the 'Land of the Thunder Dragon'?,Bhutan.,geography,b32671441800d04e9f2eff87edf2008f9dc344c74c1b31b5e90ad0f2a7d9289d,"The country known as the ""Land of the Thunder Dragon"" is Bhutan."
+medium,In what ways did the Industrial Revolution influence political ideologies in Europe?,"It fueled liberalism (free markets, rights), socialism/Marxism (worker response to inequality), and later social democracy and labor movements; it also provoked conservative reactions to rapid change.",history,154cf425add4efd8f0af44818e4db3d64084421d3be6bfb407a4decc92f6b00b,"The Industrial Revolution had a profound impact on the development of political ideologies in Europe, leading to significant changes in the way governments, societies, and individuals thought about power, economy, and social organization. Here are some key ways in which the Industrial Revolution influenced political ideologies in Europe:
+
+1. **Shift from Feudalism to Capitalism**: The Industrial Revolution marked a significant shift from the feudal system, where lords owned the land and peasants worked it in exchange for protection and shelter. The Industrial Revolution introduced"
+mediu m,What is gods own country,kerala,geography,4,"The country that is often referred to as the ""Peral of Africa"" is Ethiopia."
+mediu m,What is gods own country,kerala,geography,4,"The country that is often referred to as the ""Peral of Africa"" is Ethiopia."
+mediu m,What country is called peral of africa,uagnda,geography,4,"The country that is often referred to as the ""Peral of Africa"" is Ethiopia."
+mediu m,What country is called peral of africa,uagnda,geography,4,"The country that is often referred to as the ""Peral of Africa"" is Ethiopia."
+medium,Who won world war 2,Allies,History,7,"World War 2 was a global conflict that lasted from 1939 to 1945. The outcome of the war is a matter of debate among historians, but the Allied powers ultimately emerged victorious. Here's a brief overview of the key events and outcomes:
+
+**The Axis Powers:**
+
+* Germany, led by Adolf Hitler and the Nazi Party
+* Italy, led by Benito Mussolini
+* Japan, led by Hideki Tojo
+
+**The Allied Powers:**
+
+* The United States"
+medium,what is Profitability Index,Benefit to cost ratio including discount,Finance,8,"The Profitability Index (PI) is a financial metric that measures the profitability of a business or project by comparing its net income to its total revenue. It is a ratio that helps investors, analysts, and management to evaluate the financial health and performance of a business.
+
+The Profitability Index is calculated by dividing the net income by the total revenue. A higher PI indicates that a business is more profitable,"
