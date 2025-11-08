@@ -129,8 +129,8 @@ class OptimizedInferencePipeline:
         PRIVATE method called ONLY from __init__
         Returns (model, tokenizer) tuple
         """
-        model_name = "meta-llama/Llama-3.2-3B-Instruct"
-        cache_dir = '/app/models'
+        model_name = "meta-llama/Llama-3.2-1B-Instruct"
+        cache_dir = './app/model'
         
         # Load tokenizer
         print(f"[LOAD] Loading tokenizer...")
@@ -154,7 +154,7 @@ class OptimizedInferencePipeline:
             if not gguf_path.exists():
                 print(f"[LOAD] GGUF not cached, converting (one-time 3-5 min)...")
                 
-                hf_path = Path(cache_dir) / "models--meta-llama--Llama-3.2-3B-Instruct"
+                hf_path = Path(cache_dir) / "models--meta-llama--Llama-3.2-1B-Instruct"
                 if not hf_path.exists():
                     hf_path = Path(cache_dir)
                 

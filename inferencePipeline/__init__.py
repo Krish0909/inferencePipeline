@@ -34,7 +34,7 @@ class OptimizedInferencePipeline:
     def load_model(self):
         """Load model with basic optimizations"""
         model_name = "meta-llama/Llama-3.2-1B-Instruct"
-        cache_dir = '/app/models'
+        cache_dir = './app/model'
         
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(
