@@ -54,6 +54,7 @@ if __name__ == '__main__':
     answers_df = pd.DataFrame(answers)
     merged_df = df.merge(answers_df, on="questionID", how="left", suffixes=('', '_generated'))
 
+
     # Save results
     merged_df.to_csv(output_file, index=False)
     print(f"[MAIN] Results saved to {output_file}")

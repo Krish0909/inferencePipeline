@@ -12,6 +12,7 @@ import sys
 import subprocess
 from pathlib import Path
 import multiprocessing
+import platform
 
 
 # Try to import llama-cpp-python, fallback to transformers
@@ -74,54 +75,68 @@ class OptimizedInferencePipeline:
         print(f"[SNAPSHOT] Using direct path: {cache_path}")
         return cache_path
     
-    def convert_to_gguf(self, hf_model_path: str, output_path: str) -> bool:
+    def convert_to_gguf(self, hf_model_path: str, output_path: str, target_q="q4_1") -> bool:
         """
-        Simple one-step conversion to Q8_0 (no llama-quantize binary needed)
-        Q8_0 is directly supported by convert_hf_to_gguf.py
+        Convert HuggingFace model -> f16 GGUF -> quantize to q4_1 (or q4_0, q8_0, etc.)
         """
-        print(f"[CONVERT] Converting to Q8_0 GGUF (one-step, 3-5 min)...")
-        
         try:
+            model_path = self.find_snapshot_path(hf_model_path)
+            tmp_f16 = Path(output_path).with_suffix(".f16.gguf")
+
+            # Step 1: Convert to f16
+            print(f"[CONVERT] Step 1: Converting HF -> f16 GGUF")
             possible_scripts = [
                 Path(__file__).parent / "llama.cpp" / "convert_hf_to_gguf.py",
                 Path(__file__).parent / "llama.cpp" / "convert.py",
-                Path("/app/llama.cpp/convert_hf_to_gguf.py"),
-                Path("/app/llama.cpp/convert.py"),
             ]
-            
-            convert_script = None
-            for script in possible_scripts:
-                if script.exists():
-                    convert_script = script
-                    print(f"[CONVERT] Found script: {convert_script}")
-                    break
-            
+            convert_script = next((p for p in possible_scripts if p.exists()), None)
             if convert_script is None:
-                print(f"[CONVERT] ERROR: Conversion script not found!")
-                return False
-            
-            model_path = self.find_snapshot_path(hf_model_path)
-            
-            # Direct Q8_0 conversion (no external tools needed)
-            cmd = [
+                raise FileNotFoundError("convert_hf_to_gguf.py not found in llama.cpp")
+
+            cmd_f16 = [
                 sys.executable,
                 str(convert_script),
                 str(model_path),
-                "--outfile", str(output_path),
-                "--outtype", "q8_0"  # Directly supported!
+                "--outfile", str(tmp_f16),
+                "--outtype", "f16"
             ]
-            
-            print(f"[CONVERT] Command: {' '.join(cmd)}")
-            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-            print(f"[CONVERT] ✓ Conversion complete!")
+            subprocess.run(cmd_f16, check=True)
+            print(f"[CONVERT] ✓ f16 GGUF created: {tmp_f16}")
+
+            # Step 2: OS detection for quantizer binary
+            current_os = platform.system().lower()
+            if "darwin" in current_os:
+                bin_dir = "bin_mac"
+            elif "linux" in current_os:
+                bin_dir = "bin_linux"
+            else:
+                raise RuntimeError(f"Unsupported OS detected: {current_os}")
+
+            quant_bin = Path(__file__).parent / "llama.cpp" / bin_dir / "llama-quantize"
+            if not quant_bin.exists():
+                raise FileNotFoundError(f"Quantizer not found at {quant_bin}")
+
+            if not os.access(quant_bin, os.X_OK):
+                os.chmod(quant_bin, 0o755)
+
+            cmd_quant = [
+                str(quant_bin),
+                str(tmp_f16),
+                str(output_path),
+                target_q
+            ]
+            print(f"[CONVERT] Step 2: Running quantizer ({current_os}) → {target_q}")
+            subprocess.run(cmd_quant, check=True)
+            print(f"[CONVERT] ✓ Quantization to {target_q} complete")
+
             return True
-            
+
         except subprocess.CalledProcessError as e:
-            print(f"[CONVERT] ✗ Failed: {e}")
-            print(f"[CONVERT] stderr: {e.stderr}")
+            print(f"[CONVERT] ✗ Subprocess failed: {e}")
+            print(f"stderr:\n{getattr(e, 'stderr', '')}")
             return False
         except Exception as e:
-            print(f"[CONVERT] ✗ Failed: {e}")
+            print(f"[CONVERT] ✗ Unexpected error: {e}")
             return False
     
     def _load_model(self):
@@ -307,13 +322,12 @@ Now answer:"""
         return max(scores, key=scores.get) if max(scores.values()) > 0 else 'general'
     
     def process_batch_llamacpp(self, questions: List[str], subject: str) -> List[str]:
-        """Process batch using llama.cpp - PURE INFERENCE (fastest)"""
+        """Process batch using llama.cpp - PURE INFERENCE (fastest, silent)"""
         max_tokens = self.token_limits[subject]
         answers = []
         
         for question in questions:
             prompt = self.create_expert_prompt(question, subject)
-            
             try:
                 output = self.model(
                     prompt,
@@ -329,22 +343,18 @@ Now answer:"""
                     logprobs=None,
                     stream=False,
                 )
-                
                 answer = output['choices'][0]['text'].strip()
-                
                 if len(answer) > 5000:
                     answer = answer[:5000]
-                
                 answers.append(answer)
-                
-            except Exception as e:
-                print(f"[ERROR] Inference failed: {e}")
-                answers.append("Error generating answer.")
-        
+            except Exception:
+                # Fail silently; avoids I/O bottleneck
+                answers.append("Error.")
         return answers
-    
+
+
     def process_batch_transformers(self, questions: List[str], subject: str) -> List[str]:
-        """Process batch using transformers - PURE INFERENCE"""
+        """Process batch using transformers - PURE INFERENCE (silent)"""
         max_tokens = self.token_limits[subject]
         prompts = [self.create_expert_prompt(q, subject) for q in questions]
         
@@ -374,16 +384,12 @@ Now answer:"""
             if len(answer) > 5000:
                 answer = answer[:5000]
             answers.append(answer)
-        
         return answers
-    
+
+
     def __call__(self, questions: List[Dict]) -> List[Dict]:
-        """
-        Main inference function - ONLY GENERATION (timed section)
-        Model is already loaded in __init__
-        """
+        """Main inference function - silent, no console output."""
         batch_size = 16
-        # Group by subject for better batching
         subject_groups = {'algebra': [], 'geography': [], 'history': [], 'general': []}
         
         for q in questions:
@@ -392,7 +398,6 @@ Now answer:"""
         
         all_results = []
         
-        # Process each subject group
         for subject, subject_questions in subject_groups.items():
             if not subject_questions:
                 continue
@@ -401,41 +406,35 @@ Now answer:"""
             question_ids = [q['questionID'] for q in subject_questions]
             
             if self.use_llamacpp:
-                # llama.cpp - optimized batches
-                
                 for i in range(0, len(questions_text), batch_size):
                     batch_qs = questions_text[i:i+batch_size]
                     batch_ids = question_ids[i:i+batch_size]
-                    
                     try:
                         batch_answers = self.process_batch_llamacpp(batch_qs, subject)
                         for qid, answer in zip(batch_ids, batch_answers):
                             all_results.append({"questionID": qid, "answer": answer})
-                    except Exception as e:
-                        print(f"[ERROR] Batch failed: {e}")
+                    except Exception:
+                        # Silent batch fail
                         for qid in batch_ids:
                             all_results.append({"questionID": qid, "answer": "Error."})
             else:
-                # Transformers - larger batches
                 for i in range(0, len(questions_text), self.batch_size):
                     batch_qs = questions_text[i:i+self.batch_size]
                     batch_ids = question_ids[i:i+batch_size]
-                    
                     try:
                         batch_answers = self.process_batch_transformers(batch_qs, subject)
                         for qid, answer in zip(batch_ids, batch_answers):
                             all_results.append({"questionID": qid, "answer": answer})
-                    except Exception as e:
-                        print(f"[ERROR] Batch failed: {e}")
+                    except Exception:
                         for qid in batch_ids:
                             all_results.append({"questionID": qid, "answer": "Error."})
                     
                     if i % 192 == 0 and i > 0:
                         gc.collect()
         
-        # Return in original order
         result_dict = {r['questionID']: r for r in all_results}
         return [result_dict[q['questionID']] for q in questions]
+
 
 
 def loadPipeline():
