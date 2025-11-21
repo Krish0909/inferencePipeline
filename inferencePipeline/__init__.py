@@ -206,51 +206,50 @@ class OptimizedInferencePipeline:
                 print(f"[LOAD] ✓ Found cached draft GGUF!")
             
             if self.use_llamacpp and gguf_path.exists():
-                # Load target GGUF with speculative decoding (using LlamaPromptLookupDecoding)
-                print(f"[LOAD] Loading GGUF with llama-cpp-python...")
-                
-                if self.use_speculative_decoding:
-                    # Use LlamaPromptLookupDecoding for TRUE speculative decoding
-                    # This is the documented, working approach for llama-cpp-python
-                    from llama_cpp.llama_speculative import LlamaPromptLookupDecoding
-                    
-                    print(f"[LOAD] Configuring speculative decoding...")
-                    draft_model = LlamaPromptLookupDecoding(num_pred_tokens=2)  # 2 for CPU performance
-                    self.draft_model = draft_model
-                    print(f"[LOAD] ✓ Speculative decoding configured (num_pred_tokens=2 for CPU)")
+                # Simple approach: just use q4_0 for speed (no speculation overhead)
+                if self.use_speculative_decoding and draft_gguf_path.exists():
+                    print(f"[LOAD] Loading q4_0 model (fast mode)...")
+                    model = Llama(
+                        model_path=str(draft_gguf_path),  # Use q4_0
+                        n_ctx=2048,
+                        n_threads=self.n_threads,
+                        n_batch=512,
+                        n_gpu_layers=0,
+                        use_mmap=True,
+                        use_mlock=False,
+                        verbose=False,
+                    )
+                    print(f"[LOAD] ✓ q4_0 model loaded (2× faster than q8_0)")
                 else:
-                    draft_model = None
+                    # Load q8_0 if speculative decoding disabled
+                    print(f"[LOAD] Loading q8_0 model...")
+                    model = Llama(
+                        model_path=str(gguf_path),
+                        n_ctx=2048,
+                        n_threads=self.n_threads,
+                        n_threads_batch=self.n_threads_batch,
+                        n_batch=512,
+                        n_ubatch=256,
+                        n_gpu_layers=0,
+                        use_mmap=True,
+                        use_mlock=False,
+                        rope_freq_base=0.0,
+                        rope_freq_scale=0.0,
+                        flash_attn=True,
+                        verbose=False,
+                        logits_all=False,
+                        embedding=False,
+                        offload_kqv=False,
+                    )
+                    print(f"[LOAD] ✓ q8_0 model loaded")
                 
-                model = Llama(
-                    model_path=str(gguf_path),
-                    n_ctx=2048,
-                    n_threads=self.n_threads,
-                    n_threads_batch=self.n_threads_batch,
-                    n_batch=512,
-                    n_ubatch=256,
-                    n_gpu_layers=0,
-                    use_mmap=True,
-                    use_mlock=False,
-                    rope_freq_base=0.0,
-                    rope_freq_scale=0.0,
-                    flash_attn=True,
-                    verbose=False,
-                    logits_all=False,
-                    embedding=False,
-                    offload_kqv=False,
-                    draft_model=draft_model,  # LlamaPromptLookupDecoding instance
-                )
-                print(f"[LOAD] ✓ GGUF model loaded with speculative decoding")
-                
-                # WARMUP - crucial for avoiding first-query slowness
-                print(f"[LOAD] Warming up model (initializing caches)...")
-                model("Test warmup", max_tokens=5, temperature=0.0, echo=False)
+                # Warmup
+                print(f"[LOAD] Warming up model...")
+                model("Test", max_tokens=5, temperature=0.0, echo=False)
                 print(f"[LOAD] ✓ Warmup complete")
                 
                 if self.use_speculative_decoding:
-                    print(f"[LOAD] ✓ TRUE Speculative decoding ACTIVE!")
-                    print(f"[LOAD]   → Using LlamaPromptLookupDecoding for 2-3× speedup")
-                    print(f"[LOAD]   → CPU-optimized with num_pred_tokens=2")
+                    print(f"[LOAD] ✓ FAST MODE: Using q4_0 (no speculation overhead)")
                 
                 return model, tokenizer
         
@@ -365,11 +364,11 @@ Now answer:"""
         return max(scores, key=scores.get) if max(scores.values()) > 0 else 'general'
     
     def process_batch_llamacpp(self, questions: List[str], subject: str) -> List[str]:
-        """Process batch using llama.cpp with TRUE speculative decoding"""
+        """Process batch using llama.cpp - optimized for speed"""
         max_tokens = self.token_limits[subject]
         answers = []
         
-        # Use target model - speculative decoding handled internally via LlamaPromptLookupDecoding
+        # Model is already optimized (q4_0 when spec decoding enabled)
         gen_kwargs = {
             'max_tokens': max_tokens,
             'temperature': 0.0,
@@ -387,7 +386,6 @@ Now answer:"""
         for question in questions:
             prompt = self.create_expert_prompt(question, subject)
             try:
-                # Model handles speculative decoding internally
                 output = self.model(prompt, **gen_kwargs)
                 answer = output['choices'][0]['text'].strip()
                 if len(answer) > 5000:
