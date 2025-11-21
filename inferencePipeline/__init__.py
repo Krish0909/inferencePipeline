@@ -41,7 +41,7 @@ class OptimizedInferencePipeline:
         # Speculative decoding configuration
         self.use_speculative_decoding = use_speculative_decoding and LLAMA_CPP_AVAILABLE
         self.draft_model = None
-        self.spec_draft_count = 8  # Number of tokens to draft ahead
+        self.spec_draft_count = 4  # Reduced from 8 for better CPU efficiency
         
         # Optimal thread configuration for 16-core AMD CPU
         self.n_cores = multiprocessing.cpu_count()
